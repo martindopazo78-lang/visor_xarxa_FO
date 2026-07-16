@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xarxa FO — Cerca de connexions</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#161d26; --panel2:#1c2530; --line:#26313d;
+    --ink:#e6edf3; --dim:#8b97a6; --faint:#5c6773;
+    --acc:#38bdf8; --acc2:#22d3a6; --node:#f4c95d; --cable:#5aa9e6;
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.45;overflow:hidden}
+  #app{display:grid;grid-template-rows:auto 1fr;height:100vh;height:100dvh}
+
+  header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#141b24,#0f1419);padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:15px;margin:0;letter-spacing:.3px;font-weight:600}
+  header h1 span{color:var(--acc)}
+  .stat{font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .stat b{color:var(--ink);font-weight:600}
+  .grow{flex:1}
+
+  main{display:grid;grid-template-columns:370px 1fr;min-height:0}
+  @media(max-width:760px){
+    main{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    .side{max-height:44vh}
+    #detail{border-top:1px solid var(--line)}
+  }
+
+  .side{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+  .searchbox{padding:12px;border-bottom:1px solid var(--line)}
+  .searchbox input{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);padding:11px 12px;border-radius:8px;font-size:15px;font-family:var(--mono)}
+  .searchbox input:focus{outline:none;border-color:var(--acc)}
+  .filters{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .chip{font-size:11px;padding:5px 11px;border-radius:20px;border:1px solid var(--line);background:transparent;color:var(--dim);cursor:pointer;user-select:none;font-family:var(--mono)}
+  .chip.on{background:var(--panel2);color:var(--acc);border-color:var(--acc)}
+  .results{overflow-y:auto;flex:1;min-height:0;-webkit-overflow-scrolling:touch}
+  .ritem{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+  .ritem:active{background:var(--panel2)}
+  .ritem.sel{background:#1a2b38;border-left:3px solid var(--acc);padding-left:9px}
+  .ritem .nm{font-family:var(--mono);font-size:12.5px;color:var(--ink);word-break:break-all}
+  .ritem .mt{font-size:10.5px;color:var(--faint);margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
+  .tag{display:inline-block;font-size:9.5px;padding:1px 6px;border-radius:3px;margin-right:5px;font-family:var(--mono)}
+  .tag.p{background:#3a2f14;color:var(--node)}
+  .tag.l{background:#132b3f;color:var(--cable)}
+  .empty{padding:36px 20px;text-align:center;color:var(--faint);font-size:13px}
+
+  #detail{overflow-y:auto;background:var(--bg);min-height:0;-webkit-overflow-scrolling:touch}
+  .loading{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--dim)}
+  .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  .dhead{padding:18px 22px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:linear-gradient(180deg,#12181f,#0f1419);z-index:2}
+  .dhead .kind{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:4px}
+  .dhead h2{margin:0;font-family:var(--mono);font-size:18px;word-break:break-all;color:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .dhead .sub{margin-top:6px;color:var(--dim);font-size:12px;font-family:var(--mono)}
+
+  .dbody{padding:16px 22px 60px}
+  .block{margin-bottom:22px}
+  .block > .bt{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--acc2);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .block > .bt .ct{font-family:var(--mono);color:var(--faint);letter-spacing:0}
+
+  table.props{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.props td{padding:5px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.props td.k{color:var(--dim);width:130px;font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+  table.props td.v{font-family:var(--mono);color:var(--ink);word-break:break-word}
+
+  .assoc{display:grid;gap:7px}
+  .acard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:10px}
+  .acard:active{border-color:var(--acc);background:var(--panel2)}
+  .acard .ic{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+  .acard .ic.p{background:#3a2f14;color:var(--node)}
+  .acard .ic.l{background:#132b3f;color:var(--cable)}
+  .acard .info{min-width:0;flex:1}
+  .acard .an{font-family:var(--mono);font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acard .as{font-size:10.5px;color:var(--faint);margin-top:1px}
+  .acard .dist{font-family:var(--mono);font-size:12px;color:var(--acc2);flex-shrink:0}
+  .none{color:var(--faint);font-size:12.5px;font-style:italic;padding:4px 0}
+  .copy{cursor:pointer;color:var(--faint);font-size:11px}
+  .copy:active{color:var(--acc)}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--acc);color:var(--acc);padding:8px 16px;border-radius:8px;font-size:12px;opacity:0;transition:.2s;pointer-events:none;font-family:var(--mono);z-index:9}
+  .toast.show{opacity:1}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#2a3542;border-radius:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Xarxa <span>FO</span></h1>
+    <div class="stat" id="statLine">Carregant xarxa…</div>
+    <div class="grow"></div>
+  </header>
+  <main>
+    <aside class="side">
+      <div class="searchbox">
+        <input id="q" placeholder="Cerca caixa, cable, codi…" autocomplete="off" autocapitalize="off" spellcheck="false" disabled>
+        <div class="filters" id="filters">
+          <span class="chip on" data-f="all">Tot</span>
+          <span class="chip" data-f="caixa">Caixes</span>
+          <span class="chip" data-f="l">Cables</span>
+          <span class="chip" data-f="node">Nodes</span>
+        </div>
+      </div>
+      <div class="results" id="results">
+        <div class="empty">Carregant…</div>
+      </div>
+    </aside>
+    <section id="detail">
+      <div class="loading"><div class="spin"></div><div>Carregant xarxa de fibra…</div></div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const state={els:[],points:[],lines:[],endIndex:new Map(),filter:'all',sel:null};
+const F=1e5; // coords guardades com enters *1e5
+
+const CAIXA_FUNC=/EMPIULAMENT|TERMINAL|CAIXA|EMPALME/i;
+function isCaixa(el){return CAIXA_FUNC.test(el.f['Funció']||'')||/(^|_)CE\d/i.test(el.n)}
+
+// ---------- càrrega dades ----------
+async function load(){
+  try{
+    const r=await fetch('red.json');
+    if(!r.ok)throw new Error('No es troba red.json ('+r.status+')');
+    const data=await r.json();
+    for(const rec of data){
+      const el={n:rec.n,g:rec.g,f:rec.f||{}};
+      if(rec.g==='l'){el.a=rec.a;el.b=rec.b;}
+      else{el.p=rec.p;}
+      state.els.push(el);
+      if(rec.g==='l')state.lines.push(el);else state.points.push(el);
+    }
+    buildIndex();
+    ready();
+  }catch(e){
+    $('#detail').innerHTML='<div class="loading" style="color:#f0a03c;padding:30px;text-align:center">No s\u2019ha pogut carregar la xarxa.<br><span style="font-size:12px">'+e.message+'</span></div>';
+  }
+}
+
+// ---------- índex espacial ----------
+const gk=(a,b)=>a+'_'+b;
+function buildIndex(){
+  state.endIndex=new Map();state.ptIndex=new Map();
+  for(const l of state.lines){
+    for(const pt of [l.a,l.b]){
+      const k=gk(pt[0],pt[1]);
+      if(!state.endIndex.has(k))state.endIndex.set(k,[]);
+      state.endIndex.get(k).push(l);
+    }
+  }
+  for(const p of state.points){
+    const k=gk(p.p[0],p.p[1]);
+    if(!state.ptIndex.has(k))state.ptIndex.set(k,[]);
+    state.ptIndex.get(k).push(p);
+  }
+}
+
+// dist en metres a partir d'enters *1e5
+function distM(ax,ay,bx,by){
+  const R=6371000,rad=Math.PI/180;
+  const lo1=ax/F,la1=ay/F,lo2=bx/F,la2=by/F;
+  const dx=(lo2-lo1)*rad*Math.cos((la1+la2)/2*rad),dy=(la2-la1)*rad;
+  return R*Math.sqrt(dx*dx+dy*dy);
+}
+
+function findAssoc(el){
+  const cables=[],punts=[],seen=new Set([el]);
+  const probe = el.g==='p' ? [el.p] : [el.a,el.b];
+  for(const[x,y]of probe){
+    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+      const k=gk(x+dx,y+dy);
+      (state.endIndex.get(k)||[]).forEach(c=>{
+        if(seen.has(c))return;seen.add(c);
+        const d=Math.min(distM(x,y,c.a[0],c.a[1]),distM(x,y,c.b[0],c.b[1]));
+        cables.push({el:c,d});
+      });
+      (state.ptIndex.get(k)||[]).forEach(p=>{
+        if(seen.has(p))return;seen.add(p);
+        punts.push({el:p,d:distM(x,y,p.p[0],p.p[1])});
+      });
+    }
+  }
+  cables.sort((a,b)=>a.d-b.d);punts.sort((a,b)=>a.d-b.d);
+  return{cables,punts};
+}
+
+// ---------- cerca ----------
+function matchFilter(el){
+  if(state.filter==='all')return true;
+  if(state.filter==='l')return el.g==='l';
+  if(state.filter==='caixa')return el.g==='p'&&isCaixa(el);
+  if(state.filter==='node')return el.g==='p'&&!isCaixa(el);
+  return true;
+}
+function searchEls(term){
+  term=term.trim().toLowerCase();
+  const out=[];
+  for(const el of state.els){
+    if(!matchFilter(el))continue;
+    if(!term){out.push(el);if(out.length>=250)break;continue;}
+    const hay=(el.n+' '+(el.f['Codi projecte']||'')+' '+(el.f['Municipi']||'')+' '+(el.f['Etiqueta']||'')+' '+(el.f['Secció']||'')).toLowerCase();
+    if(hay.indexOf(term)>-1){out.push(el);if(out.length>=250)break;}
+  }
+  return out;
+}
+
+// ---------- render ----------
+const results=$('#results'),detail=$('#detail');
+function escapeHtml(s){return(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+function renderResults(list){
+  if(!list.length){results.innerHTML='<div class="empty">Cap coincidència</div>';return;}
+  const frag=document.createDocumentFragment();
+  for(const el of list){
+    const d=document.createElement('div');
+    d.className='ritem';
+    const isC=el.g==='p'&&isCaixa(el);
+    const kind=el.g==='p'?(isC?'CAIXA':'NODE'):'CABLE';
+    const meta=el.g==='p'?(el.f['Funció']||el.f['Tipus estructura']||'Punt'):(el.f['Secció']||el.f['Long. real (m)']+' m'||'Cable');
+    d.innerHTML='<div class="nm"><span class="tag '+el.g+'">'+kind+'</span>'+escapeHtml(el.n||'(sense nom)')+'</div><div class="mt">'+escapeHtml(meta)+(el.f.Municipi?' · '+escapeHtml(el.f.Municipi):'')+'</div>';
+    d.onclick=()=>select(el);
+    frag.appendChild(d);
+  }
+  results.innerHTML='';results.appendChild(frag);
+}
+
+function propTable(el){
+  const order=['Codi projecte','Municipi','Secció','Etiqueta','Long. real (m)','Funció','Tipus estructura'];
+  const keys=Object.keys(el.f);
+  const sorted=[...order.filter(k=>keys.includes(k)),...keys.filter(k=>!order.includes(k))];
+  let rows='';
+  for(const k of sorted)if(el.f[k])rows+='<tr><td class="k">'+escapeHtml(k)+'</td><td class="v">'+escapeHtml(el.f[k])+'</td></tr>';
+  return '<table class="props">'+rows+'</table>';
+}
+function assocCard(item){
+  const el=item.el;
+  const isC=el.g==='p'&&isCaixa(el);
+  const meta=el.g==='p'?(el.f['Funció']||el.f['Tipus estructura']||''):(el.f['Long. real (m)']?el.f['Long. real (m)']+' m':'')+(el.f['Secció']?' · '+el.f['Secció']:'');
+  return '<div class="acard" data-n="'+encodeURIComponent(el.n)+'"><div class="ic '+el.g+'">'+(el.g==='p'?'●':'╱')+'</div><div class="info"><div class="an">'+escapeHtml(el.n||'(sense nom)')+'</div><div class="as">'+escapeHtml(meta)+'</div></div><div class="dist">'+(item.d<1?'·':Math.round(item.d)+'m')+'</div></div>';
+}
+
+function select(el){
+  state.sel=el;
+  const {cables,punts}=findAssoc(el);
+  const isP=el.g==='p';const isC=isP&&isCaixa(el);
+  let html='<div class="dhead"><div class="kind">'+(isP?(isC?'Caixa · '+escapeHtml(el.f['Funció']||''):'Node'):'Cable · '+escapeHtml(el.f['Secció']||'tram'))+'</div>'+
+    '<h2>'+escapeHtml(el.n||'(sense nom)')+'<span class="copy" data-copy="'+escapeHtml(el.n)+'">⧉ copiar</span></h2>'+
+    '<div class="sub">'+(el.f['Codi projecte']?'Codi: '+escapeHtml(el.f['Codi projecte']):'')+(el.f['Long. real (m)']?' · '+el.f['Long. real (m)']+' m':'')+'</div></div><div class="dbody">';
+
+  html+='<div class="block"><div class="bt">Propietats</div>'+propTable(el)+'</div>';
+  html+='<div class="block"><div class="bt">Cables connectats <span class="ct">'+cables.length+'</span></div>'+
+    (cables.length?'<div class="assoc">'+cables.map(assocCard).join('')+'</div>':'<div class="none">Cap cable connectat.</div>')+'</div>';
+  html+='<div class="block"><div class="bt">'+(isP?'Altres punts aquí':'Punts als extrems')+' <span class="ct">'+punts.length+'</span></div>'+
+    (punts.length?'<div class="assoc">'+punts.map(assocCard).join('')+'</div>':'<div class="none">Cap punt coincident.</div>')+'</div></div>';
+
+  detail.innerHTML=html;detail.scrollTop=0;
+  detail.querySelectorAll('.acard').forEach(c=>c.onclick=()=>{
+    const nm=decodeURIComponent(c.dataset.n);
+    const t=state.els.find(e=>e.n===nm);
+    if(t){$('#q').value=nm;renderResults(searchEls(nm));select(t);
+      if(window.innerWidth<=760)detail.scrollIntoView({behavior:'smooth'});}
+  });
+  detail.querySelectorAll('[data-copy]').forEach(c=>c.onclick=e=>{e.stopPropagation();navigator.clipboard&&navigator.clipboard.writeText(c.dataset.copy);toast('Copiat: '+c.dataset.copy)});
+  document.querySelectorAll('.ritem').forEach(n=>n.classList.toggle('sel',n.querySelector('.nm').textContent.includes(el.n)));
+}
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),1400)}
+
+// ---------- ui ----------
+let timer;
+$('#q').addEventListener('input',e=>{clearTimeout(timer);timer=setTimeout(()=>renderResults(searchEls(e.target.value)),110)});
+$('#filters').addEventListener('click',e=>{if(!e.target.dataset.f)return;state.filter=e.target.dataset.f;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c.dataset.f===state.filter));
+  renderResults(searchEls($('#q').value))});
+
+function ready(){
+  $('#q').disabled=false;$('#q').focus();
+  const nCab=state.lines.length;
+  const nCx=state.points.filter(isCaixa).length;
+  const nNd=state.points.length-nCx;
+  $('#statLine').innerHTML='<b>'+nCab.toLocaleString()+'</b> cables · <b>'+nCx.toLocaleString()+'</b> caixes · <b>'+nNd.toLocaleString()+'</b> nodes';
+  detail.innerHTML='<div class="empty" style="padding:50px 30px">Cerca una caixa o cable a l\u2019esquerra i selecciona\u2019l per veure les seves connexions.</div>';
+  renderResults(searchEls(''));
+}
+load();
+</script>
+</body>
+</html>
